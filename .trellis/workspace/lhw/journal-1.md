@@ -85,3 +85,49 @@
 ### 后续事项
 
 - 无，任务已完成
+
+## 会话 3: 归档 03-26 学习与播放页修复任务
+
+**日期**: 2026-03-26
+**任务**: 归档 03-26 学习与播放页修复任务
+**分支**: `main`
+
+### 摘要
+
+完成 03-26 学习与播放页相关任务归档，active tasks 已清零；当前仅剩 .idea 和 AGENTS.md 两个未跟踪项，不影响代码状态。
+
+### 主要改动
+
+| 项目       | 说明                                                                                                    |
+| ---------- | ------------------------------------------------------------------------------------------------------- |
+| 任务归档   | 将 03-26 当天的学习、验证与播放页修复任务统一归档到 `.trellis/tasks/archive/2026-03/`                   |
+| 状态收口   | 清理当前任务指针与 active tasks，确认 `python ./.trellis/scripts/task.py list` 结果为 0 个活跃任务      |
+| 工作区记录 | 补充本轮学习与修复收尾记录，确认当前未提交内容只剩 workspace 元数据与 `.idea`、`AGENTS.md` 两个未跟踪项 |
+
+**归档任务范围**:
+
+- `03-26-project-learning-guide`
+- `03-26-play-recovery-fix`
+- `03-26-play-title-history-priority-fix`
+- `03-26-play-title-history-fallback-fix`
+- 以及同日已完成的架构学习 / deep-dive / validation 类任务
+
+### Git 提交
+
+| 哈希      | 说明             |
+| --------- | ---------------- |
+| `a6309c0` | （详见 git log） |
+
+### 测试
+
+- [OK] `python ./.trellis/scripts/task.py list`，结果为 `(no active tasks)`
+- [OK] 核对 `.trellis/tasks/archive/2026-03/`，相关 03-26 任务目录已归档
+- [OK] `git status --short`，确认代码文件无未提交改动，当前仅剩 workspace 记录文件与两个未跟踪项
+
+### 状态
+
+[OK] **已完成**
+
+### 后续事项
+
+- 无，任务已完成
