@@ -34,6 +34,25 @@ declare global {
   }
 }
 
+interface RestoredPlaybackState {
+  episodeIndex: number;
+  hasRecord: boolean;
+}
+
+interface TitleOnlyHistoryFallbackState {
+  tried: boolean;
+  candidates: SearchResult[];
+  historySourceKey: string;
+}
+
+function createDefaultSkipConfig() {
+  return {
+    enable: false,
+    intro_time: 0,
+    outro_time: 0,
+  };
+}
+
 function PlayPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -57,11 +76,7 @@ function PlayPageClient() {
     enable: boolean;
     intro_time: number;
     outro_time: number;
-  }>({
-    enable: false,
-    intro_time: 0,
-    outro_time: 0,
-  });
+  }>(() => createDefaultSkipConfig());
   const skipConfigRef = useRef(skipConfig);
   useEffect(() => {
     skipConfigRef.current = skipConfig;
@@ -119,6 +134,8 @@ function PlayPageClient() {
   const videoYearRef = useRef(videoYear);
   const detailRef = useRef<SearchResult | null>(detail);
   const currentEpisodeIndexRef = useRef(currentEpisodeIndex);
+  const titleOnlyHistoryFallbackRef =
+    useRef<TitleOnlyHistoryFallbackState | null>(null);
 
   // 同步最新值到 refs
   useEffect(() => {
@@ -416,6 +433,176 @@ function PlayPageClient() {
     }
   };
 
+  const selectHistoryPreferredSource = async (
+    sources: SearchResult[]
+  ): Promise<SearchResult | null> => {
+    try {
+      const allRecords = await getAllPlayRecords();
+      let matchedSource: SearchResult | null = null;
+      let latestSaveTime = -1;
+
+      for (const source of sources) {
+        const record = allRecords[generateStorageKey(source.source, source.id)];
+        if (!record) continue;
+
+        if (record.save_time > latestSaveTime) {
+          matchedSource = source;
+          latestSaveTime = record.save_time;
+        }
+      }
+
+      return matchedSource;
+    } catch (err) {
+      console.error('读取历史播放源失败:', err);
+      return null;
+    }
+  };
+
+  const restorePlaybackState = async (
+    source: string,
+    id: string,
+    detailData: SearchResult
+  ): Promise<RestoredPlaybackState> => {
+    const recordKey = generateStorageKey(source, id);
+    const maxEpisodeIndex = Math.max(0, detailData.episodes.length - 1);
+    let nextEpisodeIndex = 0;
+    let hasRecord = false;
+
+    // Reset to the resolved source first, so stale source state does not leak
+    // into title-only or prefer=true initialization flows.
+    resumeTimeRef.current = null;
+    setSkipConfig(createDefaultSkipConfig());
+
+    const [recordsResult, skipConfigResult] = await Promise.allSettled([
+      getAllPlayRecords(),
+      getSkipConfig(source, id),
+    ]);
+
+    if (recordsResult.status === 'fulfilled') {
+      const record = recordsResult.value[recordKey];
+
+      if (record) {
+        hasRecord = true;
+        nextEpisodeIndex = Math.max(
+          0,
+          Math.min(record.index - 1, maxEpisodeIndex)
+        );
+        resumeTimeRef.current = record.play_time > 0 ? record.play_time : null;
+      }
+    } else {
+      console.error('读取播放记录失败:', recordsResult.reason);
+    }
+
+    if (skipConfigResult.status === 'fulfilled') {
+      setSkipConfig(skipConfigResult.value || createDefaultSkipConfig());
+    } else {
+      console.error('读取跳过片头片尾配置失败:', skipConfigResult.reason);
+      setSkipConfig(createDefaultSkipConfig());
+    }
+
+    return {
+      episodeIndex: nextEpisodeIndex,
+      hasRecord,
+    };
+  };
+
+  const tryTitleOnlyHistoryFallback = async (
+    reason: string
+  ): Promise<boolean> => {
+    const fallbackState = titleOnlyHistoryFallbackRef.current;
+    const failedSource = currentSourceRef.current;
+    const failedId = currentIdRef.current;
+
+    if (!fallbackState || fallbackState.tried || !failedSource || !failedId) {
+      return false;
+    }
+
+    const failedSourceKey = generateStorageKey(failedSource, failedId);
+    if (failedSourceKey !== fallbackState.historySourceKey) {
+      return false;
+    }
+
+    fallbackState.tried = true;
+
+    const fallbackCandidates = fallbackState.candidates.filter(
+      (source) =>
+        generateStorageKey(source.source, source.id) !== failedSourceKey
+    );
+
+    if (fallbackCandidates.length === 0) {
+      return false;
+    }
+
+    try {
+      console.warn(`历史播放源加载失败，尝试自动回退: ${reason}`);
+      setVideoLoadingStage('sourceChanging');
+      setIsVideoLoading(true);
+
+      const fallbackDetail =
+        fallbackCandidates.length === 1
+          ? fallbackCandidates[0]
+          : await preferBestSource(fallbackCandidates);
+
+      const previousEpisodeIndex = currentEpisodeIndexRef.current;
+      const previousResumeTime = resumeTimeRef.current;
+      const maxEpisodeIndex = Math.max(0, fallbackDetail.episodes.length - 1);
+      const fallbackEpisodeIndexWhenNoRecord = Math.max(
+        0,
+        Math.min(previousEpisodeIndex, maxEpisodeIndex)
+      );
+
+      const restoredPlaybackState = await restorePlaybackState(
+        fallbackDetail.source,
+        fallbackDetail.id,
+        fallbackDetail
+      );
+
+      let nextEpisodeIndex = restoredPlaybackState.episodeIndex;
+      if (!restoredPlaybackState.hasRecord) {
+        nextEpisodeIndex = fallbackEpisodeIndexWhenNoRecord;
+        resumeTimeRef.current =
+          fallbackEpisodeIndexWhenNoRecord === previousEpisodeIndex &&
+          previousResumeTime &&
+          previousResumeTime > 0
+            ? previousResumeTime
+            : null;
+      }
+
+      if (artPlayerRef.current) {
+        if (artPlayerRef.current.video && artPlayerRef.current.video.hls) {
+          artPlayerRef.current.video.hls.destroy();
+        }
+        artPlayerRef.current.destroy();
+        artPlayerRef.current = null;
+      }
+
+      titleOnlyHistoryFallbackRef.current = null;
+      setNeedPrefer(false);
+      setCurrentSource(fallbackDetail.source);
+      setCurrentId(fallbackDetail.id);
+      setVideoYear(fallbackDetail.year);
+      setVideoTitle(fallbackDetail.title || videoTitleRef.current);
+      setVideoCover(fallbackDetail.poster);
+      setDetail(fallbackDetail);
+      setCurrentEpisodeIndex(nextEpisodeIndex);
+
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.set('source', fallbackDetail.source);
+      newUrl.searchParams.set('id', fallbackDetail.id);
+      newUrl.searchParams.set('year', fallbackDetail.year);
+      newUrl.searchParams.set('title', fallbackDetail.title);
+      newUrl.searchParams.delete('prefer');
+      window.history.replaceState({}, '', newUrl.toString());
+
+      return true;
+    } catch (err) {
+      console.error('自动回退优选源失败:', err);
+      titleOnlyHistoryFallbackRef.current = null;
+      setIsVideoLoading(false);
+      return false;
+    }
+  };
+
   const ensureVideoSource = (video: HTMLVideoElement | null, url: string) => {
     if (!video || !url) return;
     const sources = Array.from(video.getElementsByTagName('source'));
@@ -682,8 +869,39 @@ function PlayPageClient() {
       }
 
       let detailData: SearchResult = sourcesInfo[0];
+      const isTitleOnlyEntry = !currentSource && !currentId;
+      titleOnlyHistoryFallbackRef.current = null;
+
+      if (isTitleOnlyEntry) {
+        const historyPreferredSource = await selectHistoryPreferredSource(
+          sourcesInfo
+        );
+
+        if (historyPreferredSource) {
+          detailData = historyPreferredSource;
+          titleOnlyHistoryFallbackRef.current = {
+            tried: false,
+            candidates: sourcesInfo,
+            historySourceKey: generateStorageKey(
+              historyPreferredSource.source,
+              historyPreferredSource.id
+            ),
+          };
+        } else if (optimizationEnabled) {
+          setLoadingStage('preferring');
+          setLoadingMessage('⚡ 正在优选最佳播放源...');
+
+          detailData = await preferBestSource(sourcesInfo);
+        }
+      }
+
       // 指定源和id且无需优选
-      if (currentSource && currentId && !needPreferRef.current) {
+      if (
+        !isTitleOnlyEntry &&
+        currentSource &&
+        currentId &&
+        !needPreferRef.current
+      ) {
         const target = sourcesInfo.find(
           (source) => source.source === currentSource && source.id === currentId
         );
@@ -698,6 +916,7 @@ function PlayPageClient() {
 
       // 未指定源和 id 或需要优选，且开启优选开关
       if (
+        !isTitleOnlyEntry &&
         (!currentSource || !currentId || needPreferRef.current) &&
         optimizationEnabled
       ) {
@@ -709,6 +928,12 @@ function PlayPageClient() {
 
       console.log(detailData.source, detailData.id);
 
+      const restoredPlaybackState = await restorePlaybackState(
+        detailData.source,
+        detailData.id,
+        detailData
+      );
+
       setNeedPrefer(false);
       setCurrentSource(detailData.source);
       setCurrentId(detailData.id);
@@ -716,9 +941,7 @@ function PlayPageClient() {
       setVideoTitle(detailData.title || videoTitleRef.current);
       setVideoCover(detailData.poster);
       setDetail(detailData);
-      if (currentEpisodeIndex >= detailData.episodes.length) {
-        setCurrentEpisodeIndex(0);
-      }
+      setCurrentEpisodeIndex(restoredPlaybackState.episodeIndex);
 
       // 规范URL参数
       const newUrl = new URL(window.location.href);
@@ -741,56 +964,6 @@ function PlayPageClient() {
     initAll();
   }, []);
 
-  // 播放记录处理
-  useEffect(() => {
-    // 仅在初次挂载时检查播放记录
-    const initFromHistory = async () => {
-      if (!currentSource || !currentId) return;
-
-      try {
-        const allRecords = await getAllPlayRecords();
-        const key = generateStorageKey(currentSource, currentId);
-        const record = allRecords[key];
-
-        if (record) {
-          const targetIndex = record.index - 1;
-          const targetTime = record.play_time;
-
-          // 更新当前选集索引
-          if (targetIndex !== currentEpisodeIndex) {
-            setCurrentEpisodeIndex(targetIndex);
-          }
-
-          // 保存待恢复的播放进度，待播放器就绪后跳转
-          resumeTimeRef.current = targetTime;
-        }
-      } catch (err) {
-        console.error('读取播放记录失败:', err);
-      }
-    };
-
-    initFromHistory();
-  }, []);
-
-  // 跳过片头片尾配置处理
-  useEffect(() => {
-    // 仅在初次挂载时检查跳过片头片尾配置
-    const initSkipConfig = async () => {
-      if (!currentSource || !currentId) return;
-
-      try {
-        const config = await getSkipConfig(currentSource, currentId);
-        if (config) {
-          setSkipConfig(config);
-        }
-      } catch (err) {
-        console.error('读取跳过片头片尾配置失败:', err);
-      }
-    };
-
-    initSkipConfig();
-  }, []);
-
   // 处理换源
   const handleSourceChange = async (
     newSource: string,
@@ -798,6 +971,7 @@ function PlayPageClient() {
     newTitle: string
   ) => {
     try {
+      titleOnlyHistoryFallbackRef.current = null;
       // 显示换源加载状态
       setVideoLoadingStage('sourceChanging');
       setIsVideoLoading(true);
@@ -1306,6 +1480,7 @@ function PlayPageClient() {
                     break;
                   default:
                     console.log('无法恢复的错误');
+                    void tryTitleOnlyHistoryFallback('unrecoverable-hls-error');
                     hls.destroy();
                     break;
                 }
@@ -1527,6 +1702,7 @@ function PlayPageClient() {
         if (artPlayerRef.current.currentTime > 0) {
           return;
         }
+        void tryTitleOnlyHistoryFallback('player-error-before-start');
       });
 
       // 监听视频播放结束事件，自动播放下一集
