@@ -18,14 +18,15 @@
 
 ## 规范索引
 
-| Guide                                 | 说明                                               | 状态   |
-| ------------------------------------- | -------------------------------------------------- | ------ |
-| [目录结构](./directory-structure.md)  | 路由结构、共享目录、命名方式与文件放置规则         | Active |
-| [组件规范](./component-guidelines.md) | 组件结构、props、样式与可访问性规则                | Active |
-| [Hook 规范](./hook-guidelines.md)     | 当前 Hook 使用方式、数据获取模式，以及何时抽取逻辑 | Active |
-| [状态管理](./state-management.md)     | 本地 state、Context、URL state、持久化与同步方式   | Active |
-| [质量规范](./quality-guidelines.md)   | 必做检查项、评审重点与常见回归风险                 | Active |
-| [类型安全](./type-safety.md)          | 共享类型、运行时边界与 TypeScript 约束             | Active |
+| Guide                                         | 说明                                               | 状态   |
+| --------------------------------------------- | -------------------------------------------------- | ------ |
+| [目录结构](./directory-structure.md)          | 路由结构、共享目录、命名方式与文件放置规则         | Active |
+| [组件规范](./component-guidelines.md)         | 组件结构、props、样式与可访问性规则                | Active |
+| [Hook 规范](./hook-guidelines.md)             | 当前 Hook 使用方式、数据获取模式，以及何时抽取逻辑 | Active |
+| [状态管理](./state-management.md)             | 本地 state、Context、URL state、持久化与同步方式   | Active |
+| [质量规范](./quality-guidelines.md)           | 必做检查项、评审重点与常见回归风险                 | Active |
+| [Playwright 指南](./playwright-guidelines.md) | 浏览器自动化、UI 流调试、截图与 trace 产物规范     | Active |
+| [类型安全](./type-safety.md)                  | 共享类型、运行时边界与 TypeScript 约束             | Active |
 
 ---
 
@@ -42,17 +43,22 @@
    - `useEffect` / `useMemo` / `useCallback`
    - router query state
    - `localStorage`、cookie 或其他浏览器侧状态
-3. 如果新增或修改以下内容，还要读 `type-safety.md`：
+3. 如果改动涉及以下任一项，还要读 `playwright-guidelines.md`：
+   - 浏览器自动化
+   - Playwright CLI
+   - 截图、trace、pdf 等浏览器产物
+   - 页面逆向、网络抓包、UI 流调试
+4. 如果新增或修改以下内容，还要读 `type-safety.md`：
    - API payload shape
    - config object
    - 共享 DTO
    - context value
-4. 如果改动跨越以下边界，还要读 `../guides/cross-layer-thinking-guide.md`：
+5. 如果改动跨越以下边界，还要读 `../guides/cross-layer-thinking-guide.md`：
    - `src/app/api`
    - `src/lib/config.ts`
    - `src/lib/db.client.ts`
    - 鉴权 cookie 或 runtime config 注入链路
-5. 真正改代码前，先全局搜索已有用法：
+6. 真正改代码前，先全局搜索已有用法：
    - route query name
    - storage key
    - runtime config field

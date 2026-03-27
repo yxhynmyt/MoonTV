@@ -84,6 +84,13 @@
 - favorites, play records, and search history synchronization if touched
 - admin save and rollback paths if touched
 
+### Playwright / 浏览器自动化补充要求
+
+- 涉及浏览器自动化、页面逆向、截图或 trace 时，优先使用项目内的 `$use-playwright` 工作流。
+- 所有 Playwright 产物统一放在 `output/playwright/<label>/`，不要散落到仓库根目录。
+- 未经用户明确要求，不默认新增 `@playwright/test` 用例文件。
+- 如果你通过 Playwright 复现了问题，最终结论要写回响应、PRD 或 spec，而不是只保留在产物目录里。
+
 ### 适合补 Jest 测试的内容
 
 - `src/lib` 下的 pure helper

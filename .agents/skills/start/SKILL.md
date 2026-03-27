@@ -326,11 +326,12 @@ If yes, resume from the appropriate step (usually Step 7 or 8).
 
 ### User Skills `[USER]`
 
-| Skill             | When to Use                  |
-| ----------------- | ---------------------------- |
-| `$start`          | Begin a session (this skill) |
-| `$finish-work`    | Before committing changes    |
-| `$record-session` | After completing a task      |
+| Skill             | When to Use                                            |
+| ----------------- | ------------------------------------------------------ |
+| `$start`          | Begin a session (this skill)                           |
+| `$use-playwright` | Browser automation / UI reverse / screenshots / traces |
+| `$finish-work`    | Before committing changes                              |
+| `$record-session` | After completing a task                                |
 
 ### AI Scripts `[AI]`
 
