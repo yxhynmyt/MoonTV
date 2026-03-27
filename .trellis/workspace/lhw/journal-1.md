@@ -206,3 +206,50 @@
 ### 后续事项
 
 - 无，任务已完成
+
+## 会话 6: 归档 Playwright skill 集成任务并记录包装 skill 提交
+
+**日期**: 2026-03-27
+**任务**: 归档 Playwright skill 集成任务并记录包装 skill 提交
+**分支**: `main`
+
+### 摘要
+
+（补充摘要）
+
+### 主要改动
+
+| ??    | ??                                                                                 |
+| ----- | ---------------------------------------------------------------------------------- |
+| ??    | ?? `use-playwright` ???? skill???? `38829ff`                                       |
+| ????  | ?? `.codex/skills/use-playwright/SKILL.md`???? Playwright skill ????? MoonTV ????? |
+| ????  | `03-27-integrate-playwright-skill` ???? `.trellis/tasks/archive/2026-03/`          |
+| ????? | Playwright ?????? skill ?? + Trellis ???? + ???? skill???                          |
+
+**??**:
+
+- ?? skill ???? `C:\Users\yxhyn\.codex\skills\playwright`
+- ???? skill ???
+- ?? Trellis ????????????
+
+**??**:
+
+- ?????????????????`.codex/hooks/__pycache__/`?`.idea/`?`AGENTS.md`
+
+### Git 提交
+
+| 哈希      | 说明             |
+| --------- | ---------------- |
+| `38829ff` | （详见 git log） |
+
+### 测试
+
+- [OK] （补充测试结果）
+
+### 状态
+
+[OK] **已完成**
+
+### 后续事项
+
+- 无，任务已完成
