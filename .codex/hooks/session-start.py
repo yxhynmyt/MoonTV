@@ -9,6 +9,7 @@ Output format follows Codex hook protocol:
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import subprocess
@@ -18,6 +19,26 @@ from io import StringIO
 from pathlib import Path
 
 warnings.filterwarnings("ignore")
+
+
+def _configure_stdout_for_utf8() -> None:
+    """Force UTF-8 stdout on Windows so hook JSON can contain non-ASCII text."""
+    if sys.platform != "win32":
+        return
+
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        return
+
+    if hasattr(sys.stdout, "detach"):
+        sys.stdout = io.TextIOWrapper(
+            sys.stdout.detach(),
+            encoding="utf-8",
+            errors="replace",
+        )
+
+
+_configure_stdout_for_utf8()
 
 
 def should_skip_injection() -> bool:
